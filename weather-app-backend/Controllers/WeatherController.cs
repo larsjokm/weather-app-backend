@@ -26,14 +26,23 @@ public class WeatherController : ControllerBase
     [HttpGet("current")]
     public async Task<IActionResult> GetCurrent([FromQuery] double lat, [FromQuery] double lon)
     {
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var userAgent = Request.Headers["User-Agent"].ToString();
+
         var weather = await _weatherService.GetCurrentWeatherAsync(lat, lon);
+        await _weatherService.LogIpAsync(ip, userAgent, "/api/weather/current");
+
         return Ok(weather);
     }
     
+    // 7 day forecast endpoint
     [HttpGet("forecast")]
     public async Task<IActionResult> GetForecast([FromQuery] double lat, [FromQuery] double lon)
     {
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    
         var forecast = await _weatherService.GetForecastAsync(lat, lon);
+        await _weatherService.LogForecastAsync(ip, lat, lon, forecast);
         return Ok(forecast);
     }
     

@@ -1,15 +1,48 @@
 using System.Globalization;
 using weather_app_backend.Models;
 using System.Text.Json;
+using weather_app_backend.Data;
 
 namespace weather_app_backend.Services;
 
-public class WeatherService(HttpClient httpClient, IConfiguration configuration)
+public class WeatherService(HttpClient httpClient, IConfiguration configuration, AppDbContext db)
 {
     private readonly HttpClient _httpClient = httpClient;
     // moved api and email to secret for repo 
     private readonly string _apiKey = configuration["RapidApiKey"]!;
-    private readonly string _email = configuration["ContactEmail"]!;
+    private readonly string _email = configuration["Email"]!;
+    private readonly AppDbContext _db = db;
+    
+    // db calls
+
+    public async Task LogIpAsync(string ip, string userAgent, string endpoint)
+    {
+        _db.IpLogs.Add(new IpLogDto
+        {
+            IpAddress = ip,
+            UserAgent = userAgent,
+            Endpoint = endpoint
+        });
+        await _db.SaveChangesAsync();
+        Console.WriteLine($"Logged IP: {ip} on {endpoint}");
+    }
+    
+    // log data of forecast requests 
+    public async Task LogForecastAsync(string ip, double lat, double lon, List<ForecastDayDto> forecast)
+    {
+        var toLog = new ForecastLogDto
+        {
+            IpAddress = ip,
+            Lat = lat,
+            Lon = lon,
+            ForecastJson = System.Text.Json.JsonSerializer.Serialize(forecast)
+        };
+        _db.ForecastLogs.Add(toLog);
+        await _db.SaveChangesAsync();
+        Console.WriteLine($"Wrote forecast to DB: {toLog.Id}");
+        
+    }
+    
     public async Task<List<CityDto>> GetCitiesAsync(string countryCode)
     {
         // js add everything so i dont gotta do it for every request
@@ -23,7 +56,7 @@ public class WeatherService(HttpClient httpClient, IConfiguration configuration)
 
         // stringify
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var data = json.GetProperty("data"); // top level of obj
+        var data = json.GetProperty("data"); // top level of json obj
 
         var cities = new List<CityDto>();
         var seenNames = new HashSet<string>(); // no idea what hashset does
@@ -182,7 +215,7 @@ public class WeatherService(HttpClient httpClient, IConfiguration configuration)
         var url = $"https://nominatim.openstreetmap.org/reverse?lat={lat.ToString(CultureInfo.InvariantCulture)}&lon={lon.ToString(CultureInfo.InvariantCulture)}&format=jsonv2";
 
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.UserAgent.ParseAdd($"MyWeatherApp/1.0 ({_email}"); 
+        request.Headers.UserAgent.ParseAdd($"MyWeatherApp/1.0 ({_email})"); 
 
         var response = await _httpClient.SendAsync(request);
         response.EnsureSuccessStatusCode();
