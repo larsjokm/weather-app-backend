@@ -16,7 +16,7 @@ public class WeatherController : ControllerBase
     }
 
     // all endpoints i had in frontend
-    [HttpGet("/api/cities")]
+    [HttpGet("cities")]
     public async Task<IActionResult> GetCities([FromQuery] string countryCode)
     {
         var cities = await _weatherService.GetCitiesAsync(countryCode);

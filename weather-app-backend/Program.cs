@@ -26,9 +26,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-app.UseHttpsRedirection();
-app.MapControllers();
 app.UseCors();
+
+app.UseHttpsRedirection();
+
+app.MapControllers();
 
 // check if db connected successfully
 using (var scope = app.Services.CreateScope())
