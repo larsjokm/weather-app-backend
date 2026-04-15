@@ -19,7 +19,6 @@ builder.Services.AddCors(options =>
     {
         policy
             .WithOrigins(
-                "http://localhost:3000",
                 "https://weather-app-frontend-six.vercel.app"
             )
             .AllowAnyHeader()
@@ -29,7 +28,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-app.UseCors();
+app.UseCors("AllowFrontend");
 
 app.UseHttpsRedirection();
 
