@@ -13,12 +13,15 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     )
 );
 
-// had cors error so yea ai fixed it
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy
+            .WithOrigins(
+                "http://localhost:3000",
+                "https://weather-app-frontend-six.vercel.app"
+            )
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
