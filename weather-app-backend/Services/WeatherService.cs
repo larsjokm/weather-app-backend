@@ -210,31 +210,69 @@ public class WeatherService(HttpClient httpClient, IConfiguration configuration,
     }
     
     // reverse the lat n lon from users’ granted location permission and get city name
-    public async Task<(string City, string Country)> GetLocationAsync(double lat, double lon)
+    // simple in-memory cache (top of class)
+private static readonly Dictionary<string, (string City, string Country, DateTime Expiry)> _locationCache = new();
+
+public async Task<(string City, string Country)> GetLocationAsync(double lat, double lon)
+{
+    var key = $"{lat:F4},{lon:F4}";
+
+    // caching to limit external api calls cause i got rate limited when switching to cloud hosting for some reason
+    if (_locationCache.TryGetValue(key, out var cached) && cached.Expiry > DateTime.UtcNow)
     {
-        var url = $"https://nominatim.openstreetmap.org/reverse?lat={lat.ToString(CultureInfo.InvariantCulture)}&lon={lon.ToString(CultureInfo.InvariantCulture)}&format=jsonv2";
+        return (cached.City, cached.Country);
+    }
 
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.UserAgent.ParseAdd($"MyWeatherApp/1.0 ({_email})"); 
+    var url = $"https://nominatim.openstreetmap.org/reverse?lat={lat.ToString(CultureInfo.InvariantCulture)}&lon={lon.ToString(CultureInfo.InvariantCulture)}&format=jsonv2";
 
-        var response = await _httpClient.SendAsync(request);
-        response.EnsureSuccessStatusCode();
+    var request = new HttpRequestMessage(HttpMethod.Get, url);
+    request.Headers.UserAgent.ParseAdd($"MyWeatherApp/1.0 ({_email})");
 
-        var json = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(json);
+    try
+        {
+            var response = await _httpClient.SendAsync(request);
 
-        var address = doc.RootElement.GetProperty("address");
+            // handle rate limit
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                Console.WriteLine("Nominatim rate limit hit");
 
-        // just try anything in case different countries provide different types of city or wtv
-        var city = GetAddressField(address, "city")
-                   ?? GetAddressField(address, "town")
-                   ?? GetAddressField(address, "village")
-                   ?? GetAddressField(address, "county")
-                   ?? "Unknown location";
+                return ("Unknown location", "");
+            }
 
-        var country = GetAddressField(address, "country") ?? "";
+            // in case of some random error, catch it so it doesnt crash
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"Nominatim failed: {response.StatusCode}");
+                return ("Unknown location", "");
+            }
 
-        return (city, country);
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+
+            if (!doc.RootElement.TryGetProperty("address", out var address))
+                return ("Unknown location", "");
+
+            var city = GetAddressField(address, "city")
+                       ?? GetAddressField(address, "town")
+                       ?? GetAddressField(address, "village")
+                       ?? GetAddressField(address, "county")
+                       ?? "Unknown location";
+
+            var country = GetAddressField(address, "country") ?? "";
+
+            // store in cache for later. maybe implement fetching new info after x interval to update information
+            _locationCache[key] = (city, country, DateTime.UtcNow.AddMinutes(5));
+
+            return (city, country);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Location error: {ex.Message}");
+
+            // handle so it doesnt return 500 and crashes
+            return ("Unknown location", "");
+        }
     }
 
     // idk what this is
