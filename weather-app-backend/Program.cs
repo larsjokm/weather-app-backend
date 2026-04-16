@@ -19,7 +19,8 @@ builder.Services.AddCors(options =>
     {
         policy
             .WithOrigins(
-                "https://weather-app-frontend-six.vercel.app"
+                "https://weather-app-frontend-six.vercel.app",
+                "https://weather-app-frontend-9mqiby6tz-larsj2008-gmailcoms-projects.vercel.app/"
             )
             .AllowAnyHeader()
             .AllowAnyMethod();
